@@ -1,6 +1,14 @@
 import torch
 import torch.nn.functional as F
 import math
+import torch.nn as nn
+import random
+import numpy as np
+
+fix_seed = 2024
+random.seed(fix_seed)
+torch.manual_seed(fix_seed)
+np.random.seed(fix_seed)
 
 
 class KANLinear(torch.nn.Module):
@@ -162,6 +170,7 @@ class KANLinear(torch.nn.Module):
         )
         output = base_output + spline_output
         
+        
         output = output.reshape(*original_shape[:-1], self.out_features)
         return output
 
@@ -271,11 +280,22 @@ class KAN(torch.nn.Module):
                 )
             )
 
-    def forward(self, x: torch.Tensor, update_grid=False):
+    def forward(self, x: torch.Tensor, update_grid=False, normalize=False):
+        
+        if normalize:
+            means = x.mean(1, keepdim=True).detach()
+            x = x - means
+            stdev = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False)+ 1e-5).detach() 
+            x /= stdev
+            
         for layer in self.layers:
             if update_grid:
                 layer.update_grid(x)
             x = layer(x)
+            
+        if normalize:
+            x = x * stdev
+            x = x + means
         return x
 
     def regularization_loss(self, regularize_activation=1.0, regularize_entropy=1.0):
@@ -283,3 +303,19 @@ class KAN(torch.nn.Module):
             layer.regularization_loss(regularize_activation, regularize_entropy)
             for layer in self.layers
         )
+
+
+
+
+class MLP(torch.nn.Module):
+    def __init__(self, d_inp, d_hid, n_classes):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(d_inp, d_hid),
+            nn.ReLU(),
+            nn.Linear(d_hid, n_classes)
+        )
+    
+    def forward(self, x):
+        x = self.mlp(x)
+        return x
