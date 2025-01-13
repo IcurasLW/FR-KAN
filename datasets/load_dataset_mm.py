@@ -123,71 +123,6 @@ def get_avmnist(data_dir, batch_size=128, num_workers=8, train_shuffle=True, fla
 
 
 
-
-
-
-class IMDBDataset(Dataset):
-    """Implements a torch Dataset class for the imdb dataset."""
-    
-    def __init__(self, file: h5py.File, start_ind: int, end_ind: int, vggfeature: bool = False) -> None:
-        """Initialize IMDBDataset object.
-
-        Args:
-            file (h5py.File): h5py file of data
-            start_ind (int): Starting index for dataset
-            end_ind (int): Ending index for dataset
-            vggfeature (bool, optional): Whether to return pre-processed vgg_features or not. Defaults to False.
-        """
-        self.file = file
-        self.start_ind = start_ind
-        self.size = end_ind-start_ind
-        self.vggfeature = vggfeature
-
-    def __getitem__(self, ind):
-        """Get item from dataset.
-
-        Args:
-            ind (int): Index of data to get
-
-        Returns:
-            tuple: Tuple of text input, image input, and label
-        """
-        if not hasattr(self, 'dataset'):
-            self.dataset = h5py.File(self.file, 'r')
-        text = self.dataset["features"][ind+self.start_ind]
-        image = self.dataset["images"][ind+self.start_ind] if not self.vggfeature else \
-            self.dataset["vgg_features"][ind+self.start_ind]
-        label = self.dataset["genres"][ind+self.start_ind]
-        image = image / 255
-        return image, text, label
-
-    def __len__(self):
-        """Get length of dataset."""
-        return self.size
-
-
-def get_imdb(args):
-    '''
-    This follows the setting of Multibench benchmark: https://github.com/pliang279/MultiBench.git
-    '''
-    
-    
-    file = '/home/nathan/KAN_nathan/efficient-kan/data/imdb/multimodal_imdb.hdf5'
-    train_dataloader = DataLoader(IMDBDataset(file, 0, 15552, False),
-                                    shuffle=True, num_workers=16, batch_size=args.batch_size)
-    test_dataloader = DataLoader(IMDBDataset(file, 18160, 25959, False),
-                            shuffle=False, num_workers=16, batch_size=args.batch_size)
-    
-    input_shape = [512, 1]
-    num_mod = 2
-    n_classes = 23
-    return train_dataloader, test_dataloader, input_shape, n_classes, num_mod
-
-
-
-
-
-
 def get_mimic(args):
     class MIMIC_Dataset(Dataset):
         def __init__(self, data):
@@ -300,7 +235,3 @@ def get_loader(args):
         return get_avmnist(data_dir=args.data_path + '/AVMNIST/avmnist')
     elif args.data_name == 'MIMIC':
         return get_mimic(args)
-    elif args.data_name == 'IMDB':
-        return get_imdb(args)
-    elif args.data_name == 'KINETICS400-S':
-        pass

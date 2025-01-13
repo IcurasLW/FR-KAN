@@ -66,6 +66,4 @@ for h_dim in 128 ; do
                                         --groups $group \
                                         --smooth \
                                         --need_relu 
-                                        # --smooth 
-                                        # --need_relu 
 done
