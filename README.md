@@ -22,4 +22,7 @@ Refers to [Multibench](https://github.com/pliang279/MultiBench) to download AVMN
 
 
 
+## Run Experiments
+We offer all the scripts of our experiments in `./scripts` and function approximation task in `./Function_Fitting.ipynb`. We fix the grid range as [-10, 10] and grid size as 20 for most of experiments.
+
 
