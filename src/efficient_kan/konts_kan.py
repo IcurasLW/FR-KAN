@@ -15,14 +15,11 @@ np.random.seed(fix_seed)
 
 
 class MMEncoder(torch.nn.Module):
-    def __init__(self, args, in_feature, out_feature):
+    def __init__(self, in_feature, out_feature):
         super().__init__()
-        self.args = args
         self.encoder = nn.Linear(in_feature, out_feature)
     def forward(self, x):
         return self.encoder(x)
-    
-    
     
     
 class KANLinear(torch.nn.Module):
@@ -44,9 +41,15 @@ class KANLinear(torch.nn.Module):
         self.out_features = out_features
         self.grid_size = grid_size
         self.spline_order = spline_order
-        self.groups = groups
-        assert in_features % self.groups == 0, 'Please select the group number divisible to input shape'
-        self.num_neurons_in_g = in_features // self.groups
+        assert in_features % groups == 0 or groups == -1, 'Please select the group number divisible to input shape'
+        
+        if groups == -1:
+            # if == -1, means no groups
+            # print(in_features)
+            self.groups = in_features
+        else:
+            self.groups = groups
+            
         h = (grid_range[1] - grid_range[0]) / grid_size
         grid = (
                     torch.arange(-spline_order, grid_size + spline_order + 1) * h
@@ -54,19 +57,23 @@ class KANLinear(torch.nn.Module):
                 ).expand(self.groups, -1).contiguous().unsqueeze(0)
         self.h = h
         self.register_buffer("grid", grid)
+        
         self.spline_lin_c = torch.nn.Parameter(
                             torch.Tensor(1, self.groups, grid_size + spline_order)
                             )
         self.spline_weight = torch.nn.Parameter(
-                            torch.Tensor(in_features, out_features, grid_size + spline_order)
+                            torch.Tensor(in_features, out_features)
                             )
+        
+        self.num_neurons_in_g = in_features // self.groups
         
         # self.base_weight = torch.nn.Parameter(
         #                     torch.Tensor(in_features, out_features)
         #                     )
         
+        self.grid_range = grid_range
         self.shortcut = nn.SiLU()
-        self.grid_bias = torch.nn.Parameter(torch.empty_like(grid).uniform_(-h/4, h/4))
+        self.grid_bias = torch.nn.Parameter(torch.empty_like(grid).uniform_(-h/8, h/8))
         self.scale_noise = scale_noise
         self.scale_spline = scale_spline
         self.grid_eps = grid_eps
@@ -74,11 +81,13 @@ class KANLinear(torch.nn.Module):
         self.reset_parameters()
 
 
+
     def reset_parameters(self):
         torch.nn.init.kaiming_uniform_(self.spline_weight, a=math.sqrt(5) * self.scale_spline)
         torch.nn.init.kaiming_uniform_(self.spline_lin_c, a=math.sqrt(5) * self.scale_spline)
         # torch.nn.init.kaiming_uniform_(self.base_weight, a=math.sqrt(5) * self.scale_spline)
         # torch.nn.init.kaiming_uniform_(self.grid_bias, a=math.sqrt(5) * self.scale_spline)
+
 
 
     def b_splines(self, x: torch.Tensor):
@@ -91,8 +100,11 @@ class KANLinear(torch.nn.Module):
         """
         
         # grid = (self.grid).repeat(self.num_neurons_in_g, 1, 1)
+        
         grid = (self.grid + self.grid_bias)
         grid = torch.sort(grid, dim=2, descending=False).values.repeat(self.num_neurons_in_g, 1, 1)
+        grid = torch.clamp(grid, self.grid_range[0] - self.h * self.spline_order, self.grid_range[-1] + self.h * self.spline_order)
+        
         B, E = x.shape
         x = x.contiguous().reshape(B, self.num_neurons_in_g, self.groups).unsqueeze(-1)
         bases = ((x >= grid[:, :, :-1]) & (x < grid[:, :, 1:])).to(x.dtype)
@@ -146,8 +158,8 @@ class KANLinear(torch.nn.Module):
         output = torch.einsum('begz,qgz->beg', output, self.spline_lin_c).reshape(original_shape[0], -1)
         output = torch.matmul(output, self.spline_weight) 
         if self.need_relu:
-            # shortcut_x = self.shortcut(torch.matmul(x, self.spline_weight))
             shortcut_x = torch.matmul(self.shortcut(x), self.spline_weight)
+            # shortcut_x = torch.matmul(self.shortcut(x), self.base_weight)
             output = output + shortcut_x
         output = output.reshape(*original_shape[:-1], self.out_features)
         return output
@@ -171,7 +183,11 @@ class Knots_KAN(torch.nn.Module):
         self.spline_order = spline_order
         self.n_hid = len(layers_hidden)
         self.layers = torch.nn.ModuleList()
+        self.layer_norm = torch.nn.ModuleList()
         for idx, (in_features, out_features) in enumerate(zip(layers_hidden, layers_hidden[1:])):
+            self.layer_norm.append(
+                nn.LayerNorm(in_features)
+            )
             self.layers.append(
                 KANLinear(
                     in_features,
@@ -191,22 +207,25 @@ class Knots_KAN(torch.nn.Module):
     
     def forward(self, x: torch.Tensor, update_grid=False, normalize=False):
         if normalize:
-            means = x.mean(0, keepdim=True).detach()
+            means = x.mean(1, keepdim=True).detach()
             x = x - means
-            stdev = torch.sqrt(torch.var(x, dim=0, keepdim=True, unbiased=False)+ 1e-6).detach() 
+            stdev = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False)+ 1e-6).detach() 
             x /= stdev
         
+        x = self.layer_norm[0](x)
         enc_x = self.layers[0](x)
         hid_x = enc_x
         
-        for layer in self.layers[1:-1]:
+        for layer, layernorm in zip(self.layers[1:-1], self.layer_norm[1:-1]):
+            hid_x = layernorm(hid_x)
             hid_x = layer(hid_x)
             
+        hid_x = self.layer_norm[-1](hid_x)
         hid_x = self.layers[-1](hid_x)
         
-        # if normalize:
-        #     hid_x = hid_x * stdev
-        #     hid_x = hid_x + means
+        if normalize:
+            hid_x = hid_x * stdev
+            hid_x = hid_x + means
         return hid_x
 
 
@@ -227,6 +246,7 @@ class MLP(torch.nn.Module):
             non_linear = nn.SiLU
         
         for in_features, out_features in zip(layers_hidden[:-1], layers_hidden[1:-1]):
+            self.layers.append(nn.LayerNorm(in_features))
             self.layers.append(nn.Linear(in_features, out_features))
             self.layers.append(non_linear())
         self.layers.append(nn.Linear(layers_hidden[-2], layers_hidden[-1]))

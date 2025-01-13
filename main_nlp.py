@@ -1,4 +1,4 @@
-from src.efficient_kan.group_kan import *
+from efficient_kan.konts_kan import *
 from src.efficient_kan.kan import KAN
 from src.efficient_kan.rational_kan import Rational_KAN
 
