@@ -147,6 +147,7 @@ for k in range(fold):
         # Train
         model.train()
         with tqdm(train_loader) as pbar:
+            grads_batch = []
             for i, (images, labels) in enumerate(pbar):
                 b_s = images.shape[0]
                 images = images.view(b_s, -1).to(device)
@@ -166,14 +167,13 @@ for k in range(fold):
                 
                 
                 
-                grads = []
-                grad_norm = 0
+                grad_norm = []
                 for param in model.parameters():
                     if param.grad is not None:
-                        grad_norm += param.grad.data.norm(2).item()
-                grads.append(grad_norm)
-                
-                
+                        grad_norm.append(param.grad.data.norm(2).item())
+                        
+                grad_norm = np.mean(grad_norm)
+                grads_batch.append(grad_norm)
                 
                 max_norm = 1.0
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
@@ -181,8 +181,9 @@ for k in range(fold):
                 accuracy = (output.argmax(dim=1) == labels.to(device)).float().mean()
                 pbar.set_postfix(loss=loss.item(), accuracy=accuracy.item(), lr=optimizer.param_groups[0]['lr'])
                 
+                
         
-        grad_epoch.append(np.mean(grads))
+        grad_epoch.append(grads_batch)
         
         
         #################### Validation ####################
@@ -204,7 +205,7 @@ for k in range(fold):
         
         if best_acc < val_accuracy:
             best_acc = val_accuracy
-            torch.save(model, f'../{args.model}_cv_model_{args.data_name}.pth')
+            # torch.save(model, f'../{args.model}_{args.grid_range}_cv_model_{args.data_name}.pth')
             
         logging.info(f'val acc:{val_accuracy}, val loss:{val_loss}')
         # Update learning rate
@@ -216,7 +217,7 @@ for k in range(fold):
         
     val_results.append(best_acc)
     logging.info(f'=========================================== Best val acc:{best_acc} ===========================================')
-    np.save(f'../{args.model}gradient_norm.npy', grad_epoch)
+    # np.save(f'../{args.model}_{args.grid_range}_gradient_norm.npy', grad_epoch)
 
 # logging.info(f'Fold {k} Best val acc:{best_acc}')
 # lst_metric.append(best_acc)

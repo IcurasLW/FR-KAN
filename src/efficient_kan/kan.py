@@ -168,8 +168,8 @@ class KANLinear(torch.nn.Module):
             self.b_splines(x).view(x.size(0), -1),
             self.scaled_spline_weight.view(self.out_features, -1),
         )
-        output = base_output + spline_output
-        
+        # output = base_output + spline_output
+        output = spline_output
         
         output = output.reshape(*original_shape[:-1], self.out_features)
         return output
@@ -262,9 +262,13 @@ class KAN(torch.nn.Module):
         super(KAN, self).__init__()
         self.grid_size = grid_size
         self.spline_order = spline_order
-
+        self.layer_norm = torch.nn.ModuleList()
         self.layers = torch.nn.ModuleList()
         for in_features, out_features in zip(layers_hidden, layers_hidden[1:]):
+            
+            self.layer_norm.append(
+                                nn.LayerNorm(in_features)
+                            )
             self.layers.append(
                 KANLinear(
                     in_features,
@@ -280,23 +284,30 @@ class KAN(torch.nn.Module):
                 )
             )
 
+
     def forward(self, x: torch.Tensor, update_grid=False, normalize=False):
-        
         if normalize:
             means = x.mean(1, keepdim=True).detach()
             x = x - means
-            stdev = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False)+ 1e-5).detach() 
+            stdev = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False)+ 1e-6).detach() 
             x /= stdev
+        
+        # x = self.layer_norm[0](x)
+        enc_x = self.layers[0](x)
+        hid_x = enc_x
+        
+        for layer, layernorm in zip(self.layers[1:-1], self.layer_norm[1:-1]):
+            # hid_x = layernorm(hid_x)
+            hid_x = layer(hid_x)
             
-        for layer in self.layers:
-            if update_grid:
-                layer.update_grid(x)
-            x = layer(x)
-            
+        # hid_x = self.layer_norm[-1](hid_x)
+        hid_x = self.layers[-1](hid_x)
+        
         if normalize:
-            x = x * stdev
-            x = x + means
-        return x
+            hid_x = hid_x * stdev
+            hid_x = hid_x + means
+        return hid_x
+
 
     def regularization_loss(self, regularize_activation=1.0, regularize_entropy=1.0):
         return sum(

@@ -29,24 +29,25 @@ model=Knot_KAN
 # done
 
 
+
 for h_dim in 128 ; do
-        group=-1
-        CUDA_VISIBLE_DEVICES=1 python ../main_cv.py \
-                                        --model $model \
-                                        --batch_size $batch_size \
-                                        --data_path ../data \
-                                        --data_name CIFAR10 \
-                                        --task_name CV \
-                                        --grid_size 50 \
-                                        --lr 0.001 \
-                                        --grid_range -10 10 \
-                                        --hidden_layer $h_dim \
-                                        --spline_order 3 \
-                                        --smooth_lambda 0.001 \
-                                        --groups $group \
-                                        --need_relu 
-                                        # --smooth 
-                                        # --need_relu 
+        group=64
+        # CUDA_VISIBLE_DEVICES=1 python ../main_cv.py \
+        #                                 --model $model \
+        #                                 --batch_size $batch_size \
+        #                                 --data_path ../data \
+        #                                 --data_name CIFAR10 \
+        #                                 --task_name CV \
+        #                                 --grid_size 50 \
+        #                                 --lr 0.001 \
+        #                                 --grid_range -10 10 \
+        #                                 --hidden_layer $h_dim \
+        #                                 --spline_order 3 \
+        #                                 --smooth_lambda 0.001 \
+        #                                 --groups $group \
+        #                                 --need_relu 
+        #                                 # --smooth 
+        #                                 # --need_relu 
 
 
 
@@ -63,7 +64,8 @@ for h_dim in 128 ; do
                                         --spline_order 3 \
                                         --smooth_lambda 0.001 \
                                         --groups $group \
-                                        --need_relu \
-                                        --smooth 
+                                        --smooth \
+                                        --need_relu 
+                                        # --smooth 
                                         # --need_relu 
 done

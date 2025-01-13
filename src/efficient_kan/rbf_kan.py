@@ -50,7 +50,7 @@ class RBF_KANLayer(nn.Module):
 
     def forward(self, x):
         device = x.device
-        x = self.layernorm(x)
+        # x = self.layernorm(x)
         base_output = F.linear(self.base_activation(x), self.base_weight)
         rbf_output = self.rbf(x).view(x.size(0), -1)
         rbf_output = F.linear(rbf_output, self.spline_weight)

@@ -73,7 +73,7 @@ class KANLinear(torch.nn.Module):
         
         self.grid_range = grid_range
         self.shortcut = nn.SiLU()
-        self.grid_bias = torch.nn.Parameter(torch.empty_like(grid).uniform_(-h/4, h/4))
+        self.grid_bias = torch.nn.Parameter(torch.empty_like(grid).uniform_(-h/8, h/8))
         self.scale_noise = scale_noise
         self.scale_spline = scale_spline
         self.grid_eps = grid_eps
@@ -212,15 +212,15 @@ class Knots_KAN(torch.nn.Module):
             stdev = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False)+ 1e-6).detach() 
             x /= stdev
         
-        x = self.layer_norm[0](x)
+        # x = self.layer_norm[0](x)
         enc_x = self.layers[0](x)
         hid_x = enc_x
         
         for layer, layernorm in zip(self.layers[1:-1], self.layer_norm[1:-1]):
-            hid_x = layernorm(hid_x)
+            # hid_x = layernorm(hid_x)
             hid_x = layer(hid_x)
             
-        hid_x = self.layer_norm[-1](hid_x)
+        # hid_x = self.layer_norm[-1](hid_x)
         hid_x = self.layers[-1](hid_x)
         
         if normalize:
