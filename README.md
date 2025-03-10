@@ -50,4 +50,4 @@ bash [task]/[name_of_script].sh
 
 
 ## Acknoledgement
-We thank [Pykan](https://github.com/KindXiaoming/pykan) and [Efficient-KAN](https://github.com/Blealtan/efficient-kan) for the inspiring implementation and optimized code for pytorch.
+We thank [Pykan](https://github.com/KindXiaoming/pykan) and [Efficient-KAN](https://github.com/Blealtan/efficient-kan) for the inspiring implementation and optimized code for pytorch. We also thank [X-KAN](https://github.com/lif314/X-KANeRF/tree/main/xKANeRF/xKAN) offering various KAN baseline implementation as reference.
